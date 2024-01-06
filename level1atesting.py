@@ -1,83 +1,70 @@
 import json
-import networkx as nx
+from ortools.constraint_solver import routing_enums_pb2
+from ortools.constraint_solver import pywrapcp
 
-def recommend_delivery_path(n_neighbourhoods, start, distances, order_quantities, capacity):
-    G = nx.Graph()
+def create_data_model(n_neighbourhoods, start, distances, order_quantities, capacity):
+    data = {}
+    data['n_neighbourhoods'] = n_neighbourhoods
+    data['num_vehicles'] = 1
+    data['depot'] = start
+    data['distances'] = distances
+    data['order_quantities'] = order_quantities
+    data['vehicle_capacity'] = capacity
+    return data
 
-    # Convert integer indices to strings for node labels
-    start = str(start)
-    for i, data_i in distances.items():
-        i = str(i)
-        for j, distance in enumerate(data_i["distances"]):
-            G.add_edge(i, f"n{j}", weight=distance)
+def recommend_delivery_path(data):
+    manager = pywrapcp.RoutingIndexManager(data['n_neighbourhoods'], data['num_vehicles'], data['depot'])
+    routing = pywrapcp.RoutingModel(manager)
 
-    # Add edges based on restaurant distances
-    restaurant_distances = distances.get("r0", {}).get("neighbourhood_distance", [0] * n_neighbourhoods)
-    for i, distance in enumerate(restaurant_distances):
-        G.add_edge(f"n{i}", "r0", weight=distance)
+    # Define distance callback
+    def distance_callback(from_index, to_index):
+        from_node = manager.IndexToNode(from_index)
+        to_node = manager.IndexToNode(to_index)
+        return data['distances'][from_node][to_node]
 
-    paths = {}
-    path_count = 0
+    transit_callback_index = routing.RegisterTransitCallback(distance_callback)
+    routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
 
-    # Nearest Neighbor Algorithm
-    remaining_nodes = set(G.nodes())
-    remaining_nodes.remove(start)
+    # Define demand callback
+    def demand_callback(from_index):
+        from_node = manager.IndexToNode(from_index)
+        return data['order_quantities'][from_node]
 
-    current_node = start
-    current_path = [current_node]
+    demand_callback_index = routing.RegisterUnaryTransitCallback(demand_callback)
+    routing.AddDimensionWithVehicleCapacity(demand_callback_index, 0, [data['vehicle_capacity']], True, 'Capacity')
 
-    while remaining_nodes:
-        nearest_neighbor = min(remaining_nodes, key=lambda node: G[current_node][node]['weight'])
+    # Set 10 seconds as the maximum time allowed per each vehicle in a route
+    routing.AddDimension(transit_callback_index, 0, 10, True, 'Time')
 
-        # Handle the restaurant node separately
-        if nearest_neighbor == "r0":
-            current_path.append(nearest_neighbor)
-            paths[f"path{path_count + 1}"] = current_path
-            path_count += 1
-            current_node = start
-            current_path = [current_node]
-            capacity = input_data["vehicles"]["v0"]["capacity"]
-        else:
-            # Remove 'n' prefix and keep the numeric part as a string
-            nearest_neighbor_str = nearest_neighbor[1:]
+    # Solve the problem
+    search_parameters = pywrapcp.DefaultRoutingSearchParameters()
+    solution = routing.SolveWithParameters(search_parameters)
 
-            if order_quantities[nearest_neighbor_str] <= capacity:
-                current_path.append(nearest_neighbor)
-                capacity -= order_quantities[nearest_neighbor_str]
-                remaining_nodes.remove(nearest_neighbor)
-                current_node = nearest_neighbor
-            else:
-                current_path.append("r0")
-                paths[f"path{path_count + 1}"] = current_path
-                path_count += 1
-                current_node = start
-                current_path = [current_node]
-                capacity = input_data["vehicles"]["v0"]["capacity"]
-
-    current_path.append("r0")
-    paths[f"path{path_count + 1}"] = current_path
-
-    # Prepare the output JSON
-    output = {"v0": paths}
+    # Retrieve the solution
+    output = {'v0': {'path1': []}}
+    if solution:
+        index = routing.Start(0)
+        while not routing.IsEnd(index):
+            output['v0']['path1'].append(manager.IndexToNode(index))
+            index = solution.Value(routing.NextVar(index))
+        output['v0']['path1'].append(manager.IndexToNode(index))
 
     return output
 
-if __name__ == "__main__":
-    with open("C:/KLA_MOCK_HACKTHON/Student Handout/Input data/level1a.json", "r") as file:
+if __name__ == '__main__':
+    with open('C:/KLA_MOCK_HACKTHON/Student Handout/Input data/level1a.json', 'r') as file:
         input_data = json.load(file)
 
-    n_neighbourhoods = input_data["n_neighbourhoods"]
-    start_location = input_data["vehicles"]["v0"]["start_point"]
+    n_neighbourhoods = input_data['n_neighbourhoods']
+    start_location = input_data['vehicles']['v0']['start_point']
+    distances = input_data['neighbourhoods']
 
-    distances = input_data["neighbourhoods"]
-    
-    # Update the order_quantities dictionary to include the restaurant with capacity 0
-    order_quantities = {key[1:]: data["order_quantity"] for key, data in distances.items()}
-    order_quantities["0"] = 0  # Assuming the restaurant's order quantity is 0
+    order_quantities = {key[1:]: data['order_quantity'] for key, data in distances.items()}
+    order_quantities['0'] = 0
 
-    capacity = input_data["vehicles"]["v0"]["capacity"]
+    capacity = input_data['vehicles']['v0']['capacity']
 
-    output = recommend_delivery_path(n_neighbourhoods, start_location, distances, order_quantities, capacity)
+    data_model = create_data_model(n_neighbourhoods, start_location, distances, order_quantities, capacity)
+    output = recommend_delivery_path(data_model)
 
-    # Print the JSON output with indentation for better readability
     print(json.dumps(output, indent=2))
