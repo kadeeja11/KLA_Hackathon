@@ -16,10 +16,11 @@ def recommend_delivery_path(n_neighbourhoods, vehicles, distances, order_quantit
         G.add_edge(f"n{i}", "r0", weight=distance)
 
     paths = {}
-
+    sum_capacity = 0
     # Iterate over each vehicle
     for vehicle_name, vehicle_data in vehicles.items():
         path_count = 0
+        
         capacity = vehicle_data["capacity"]
         current_node = vehicle_data["start_point"]
         current_path = [current_node]
@@ -28,6 +29,7 @@ def recommend_delivery_path(n_neighbourhoods, vehicles, distances, order_quantit
         remaining_nodes.remove(current_node)
 
         while remaining_nodes:
+            sum_capacity = 0
             nearest_neighbor = min(remaining_nodes, key=lambda node: G[current_node][node]['weight'])
 
             if nearest_neighbor == "r0":
@@ -51,10 +53,13 @@ def recommend_delivery_path(n_neighbourhoods, vehicles, distances, order_quantit
                     current_node = vehicle_data["start_point"]
                     current_path = [current_node]
                     capacity = vehicle_data["capacity"]
-
+                    sum_capacity = sum_capacity + capacity
+                    print("sum of capacity = ",sum_capacity)
+                    #sum_capacity = 0
+                    
         current_path.append(vehicle_data["start_point"])
         paths.setdefault(vehicle_name, {})[f"path{path_count + 1}"] = current_path.copy()
-
+    print("sum of capacity = ",sum_capacity)
     # Prepare the output JSON
     output = json.dumps(paths, indent=2)
 
