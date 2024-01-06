@@ -3,6 +3,7 @@ import networkx as nx
 
 def recommend_delivery_path(n_neighbourhoods, start, distances, order_quantities, capacity):
     G = nx.Graph()
+    sum_distances = 0
 
     # Convert integer indices to strings for node labels
     start = str(start)
@@ -18,6 +19,7 @@ def recommend_delivery_path(n_neighbourhoods, start, distances, order_quantities
 
     paths = {}
     path_count = 0
+    sum_capacity = 0
 
     # Nearest Neighbor Algorithm
     remaining_nodes = set(G.nodes())
@@ -28,7 +30,8 @@ def recommend_delivery_path(n_neighbourhoods, start, distances, order_quantities
 
     while remaining_nodes:
         nearest_neighbor = min(remaining_nodes, key=lambda node: G[current_node][node]['weight'])
-
+        
+        #sum_distances = sum_distances+G[2]
         # Handle the restaurant node separately
         if nearest_neighbor == "r0":
             current_path.append(nearest_neighbor)
@@ -42,7 +45,11 @@ def recommend_delivery_path(n_neighbourhoods, start, distances, order_quantities
             nearest_neighbor_str = nearest_neighbor[1:]
             if order_quantities[nearest_neighbor_str] <= capacity:
                 current_path.append(nearest_neighbor)
+                sum_capacity = sum_capacity + order_quantities[nearest_neighbor_str]
+                #sum_distances = distances[nearest_neighbor_str]
+                
                 capacity -= order_quantities[nearest_neighbor_str]
+                
                 remaining_nodes.remove(nearest_neighbor)
                 current_node = nearest_neighbor
             else:
@@ -52,7 +59,14 @@ def recommend_delivery_path(n_neighbourhoods, start, distances, order_quantities
                 current_node = start
                 current_path = [current_node]
                 capacity = input_data["vehicles"]["v0"]["capacity"]
-
+                #print("sum of capacity = ",sum_capacity)
+                sum_capacity = 0
+                #sum_distances = 0
+            
+    
+    #print("sum of capacity = ",sum_capacity)
+    #print("sum of distances = ",sum_distances)
+    #sum_capacity = 0
     current_path.append("r0")
     paths[f"path{path_count + 1}"] = current_path
     # Prepare the output JSON
@@ -79,12 +93,3 @@ if __name__ == "__main__":
 
     # Print the JSON output with indentation for better readability
     print(json.dumps(output, indent=2))
-    data_model = create_data_model(n_neighbourhoods, start_location, distances, order_quantities, capacity)
-    output = nearest_neighbor_algorithm(data_model)
-
-    # Validate delivery paths
-    if validate_delivery_paths(output['v0'], order_quantities, capacity):
-        print("Validation successful. All vehicles stay within their capacity.")
-    else:
-        print("Validation failed. Some vehicles exceed their capacity.")
-
