@@ -4,11 +4,12 @@ import networkx as nx
 def recommend_path(n_neighbourhoods, start, distances):
     G = nx.Graph()
 
+    # Flatten distances dictionary for better readability
+    flat_distances = distances["neighbourhoods"]
+
     # Add edges based on neighborhood distances
-    for i in range(n_neighbourhoods):
-        for j in range(n_neighbourhoods):
-            if i != j:
-                G.add_edge(i, j, weight=distances["neighbourhoods"][f"n{i}"]["distances"][j])
+    G.add_weighted_edges_from((i, j, flat_distances[f"n{i}"]["distances"][j])
+                              for i in range(n_neighbourhoods) for j in range(n_neighbourhoods) if i != j)
 
     # Find the shortest path that covers all neighborhoods
     path = nx.approximation.traveling_salesman_problem(G, cycle=True, weight='weight')

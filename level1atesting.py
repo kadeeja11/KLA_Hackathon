@@ -40,6 +40,7 @@ def recommend_delivery_path(n_neighbourhoods, start, distances, order_quantities
         else:
             # Remove 'n' prefix and keep the numeric part as a string
             nearest_neighbor_str = nearest_neighbor[1:]
+
             if order_quantities[nearest_neighbor_str] <= capacity:
                 current_path.append(nearest_neighbor)
                 capacity -= order_quantities[nearest_neighbor_str]
